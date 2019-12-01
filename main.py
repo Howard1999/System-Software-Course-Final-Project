@@ -1,53 +1,47 @@
 import sys
 
 from utils.asm import ASM
-#op(6) nixbpe dsip(12)
+
+DEBUG_USE_MASSAGE = False
+
 a = ASM()
-#Setup OP Table
 try:
+	#Setup OP Table
 	a.OPTAB_SETUP()
-except Exception as e:
-	print(e)
-	input()
-	quit()
-print('OPTAB:')
-print(a.OpTable(),'\n')
-#Setup Directives Table
-try:
+	#Setup Directives Table
 	a.DIRECTIVES_SETUP()
-except Exception as e:
-	print(e)
-	input()
-	quit()
-print('DIRECTIVES:\n',a.Directives(),'\n')
-#Read assembly code file
-try:
-	file_name = sys.argv[1]
-except:
-	file_name = '標準版.txt'#input('Please input the file path...>')
-try:
+	#Read assembly code file
+	try:
+		file_name = sys.argv[1]
+	except:
+		file_name = '標準版.txt'#input('Please input the file path...>')
 	a.Load_Instructions(file_name)
-except Exception as e:
-	print(e)
-	input()
-	quit()
-print('ins_list:')
-for x in a.Instruction_List():
-	print(x)
-print()
-#Establish Symbol Table
-try:
+	#Establish Symbol Table
 	a.SYMTAB_SETUP_AND_ADDRESS_ASSIGN()
+	#generate and print object program
+	objprogram = a.Compile('0x1D')
+	for x in objprogram['object_program']:
+		print(x)
 except Exception as e:
 	print(e)
 	input()
 	quit()
-print('start:',hex(a.Program_Start()))
-print('end:',hex(a.Program_End()),'\n')
-print('SYMTAB:\n',a.SymbolTable())
-#generate object code
-for r in a.Compile():
-	print(r)
+
+#print debug massage
+if DEBUG_USE_MASSAGE:
+	print('OPTAB:')
+	print(a.OpTable(),'\n')
+	
+	print('DIRECTIVES:\n',a.Directives(),'\n')
+	
+	print('ins_list:')
+	for x in a.Instruction_List():
+		print(x)
+	print()
+	
+	print('start:',hex(a.Program_Start()))
+	print('end:',hex(a.Program_End()))
+	print('program name:',a.Program_Name(),'\n')
+	print('SYMTAB:\n',a.SymbolTable(),'\n')
 
 input()
-	

@@ -14,10 +14,14 @@ try:
 	try:
 		file_name = sys.argv[1]
 	except:
-		file_name = '標準版.txt'#input('Please input the file path...>')
+		file_name = 'sample input.txt'#input('Please input the file path...>')
 	a.Load_Instructions(file_name)
+	#some handeler
+	a.Blocks_Handeler()
+	a.Literal_Handeler()
 	#Establish Symbol Table
 	a.SYMTAB_SETUP_AND_ADDRESS_ASSIGN()
+	a.Symbol_Defining_Handeler()
 	#generate and print object program
 	objprogram = a.Compile('0x1D')
 	for x in objprogram['object_program']:
@@ -25,7 +29,6 @@ try:
 except Exception as e:
 	print(e)
 	input()
-	quit()
 
 #print debug massage
 if DEBUG_USE_MASSAGE:
@@ -43,5 +46,11 @@ if DEBUG_USE_MASSAGE:
 	print('end:',hex(a.Program_End()))
 	print('program name:',a.Program_Name(),'\n')
 	print('SYMTAB:\n',a.SymbolTable(),'\n')
+	print('Literal_Address:\n',a.Literals())
+	
+	print('ins_list after handeler:')
+	for x in a.Instruction_List_After_Handeler():
+		print(x)
+	print()
 
 input()

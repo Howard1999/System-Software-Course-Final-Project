@@ -9,21 +9,25 @@ def MyHex(i, j=6):
 
 class Instruction():
 	def __init__(self, line):
-		s = line[0]
-		line = line.replace(', ',',')
-		line = line.replace(' ,',',')
-		line = line.split()
-		if len(line) == 2:
-			if s=='\t' or s==' ':
+		l=line
+		try:
+			s = line[0]
+			line = line.replace(', ',',')
+			line = line.replace(' ,',',')
+			line = line.split()
+			if len(line) == 2:
+				if s=='\t' or s==' ':
+					line.insert(0,'')
+				else:
+					line.insert(2,'')
+			elif len(line) == 1:
 				line.insert(0,'')
-			else:
 				line.insert(2,'')
-		elif len(line) == 1:
-			line.insert(0,'')
-			line.insert(2,'')
-		line.insert(3,None)
-		self.ins = line
-		self.literal_identify = False
+			line.insert(3,None)
+			self.ins = line
+			self.literal_identify = False
+		except:
+			raise Exception('instruction parsing error: '+l)
 	def __str__(self):
 		l = self.Label()
 		o = self.Operate()
@@ -72,6 +76,7 @@ class OPtable():
 		return self.OPTAB[op][0]
 class ASM():
 	def __init__(self):
+		self.DEBUG=False
 		self.attribute ={
 			'name' : None,
 			'start' : None,
@@ -94,6 +99,10 @@ class ASM():
 		self.ins_list = []
 		self.origin_ins_list = []
 		self.objcode = []
+	def Turn_On_Debug(self):
+		self.DEBUG = True
+	def Turn_Off_Debug(self):
+		self.DEBUG = False
 	def OpTable(self):
 		return self.OPTAB
 	def SymbolTable(self):
@@ -120,12 +129,21 @@ class ASM():
 		return False
 	def OPTAB_SETUP(self, file_name = 'utils/opcode'):
 		try:
+			if self.DEBUG:
+				print('Load OPTAB...>',end='')
 			f = open(file_name, 'r')
 			self.OPTAB = OPtable(f.readlines())
 			f.close()
+			if self.DEBUG:
+				print('Success')
+				print(self.OPTAB)
 		except Exception as e:
+			if self.DEBUG:
+				print('Fail')
 			raise e
 	def Blocks_Handeler(self):
+		if self.DEBUG:
+			print('Handel program block...>',end='')
 		blocks = {
 			'(default)' : [],
 			'CDATA' : [],
@@ -143,7 +161,11 @@ class ASM():
 			else:
 				blocks[imm_block].append(ins)
 		self.ins_list = blocks['(default)'] + blocks['CDATA'] + blocks['CBLKS']
+		if self.DEBUG:
+			print('Success')
 	def Literal_Handeler(self):
+		if self.DEBUG:
+			print('Handel literal...>',end='')
 		def int_to_chr(i):
 			if 0<=i<=(26*26-1):
 				return chr(ord('A')+(i//26)) + chr(ord('A')+(i%26))
@@ -159,7 +181,7 @@ class ASM():
 			if '=' in par and self.OPTAB.Is_in_OPtable(op):#literal
 				set=False
 				for q in queue:
-					if q.Param()==par.replace('=',''):
+					if q.Param()==par.replace('=','') and par.replace('=','')!='*':
 						self.ins_list[index].Set_Param('='+q.Label())
 						set=True
 						break
@@ -179,7 +201,11 @@ class ASM():
 				queue = []
 			index += 1
 		self.ins_list = self.ins_list + queue
+		if self.DEBUG:
+			print('Success')
 	def SYMTAB_SETUP_AND_ADDRESS_ASSIGN(self):
+		if self.DEBUG:
+			print('Build symbol table and address assign...>')
 		#START directive
 		if not self.Check_Start_Directive():
 			raise Exception('Without START directives')
@@ -187,7 +213,10 @@ class ASM():
 			self.attribute['start'] = int(self.ins_list[0].Param())
 			self.attribute['name'] = self.ins_list[0].Label()
 			PC = self.attribute['start']
+			end_of_program = PC
 		for ins in self.ins_list:
+			if self.DEBUG:
+				print('addr:'+str(PC),ins)
 		#set instruction address
 			ins.Set_Address(PC)
 		#put into Symbol table
@@ -216,23 +245,29 @@ class ASM():
 				t = ins.Param()[0]
 				if t == 'X':
 					PC += (len(ins.Param()[1:].replace("'",''))+1)//2
+					if PC>end_of_program:
+						end_of_program = PC
 				elif t == 'C':
 					PC += len(ins.Param()[1:].replace("'",''))
-				else:
-					t = hex(int(ins.Param))
-					t.replace('0x','')
-					PC += (len(t)+1)//2
+					if PC>end_of_program:
+						end_of_program = PC
 			elif ins.Operate() == 'WORD':
 				PC += 3
+				if PC>end_of_program:
+						end_of_program = PC
 			elif ins.Operate() == 'RESB':
 				PC += int(ins.Param())
+				if PC>end_of_program:
+						end_of_program = PC
 			elif ins.Operate() == 'RESW':
 				PC += int(ins.Param())*3
+				if PC>end_of_program:
+						end_of_program = PC
 			elif ins.Operate() == 'END':
 				pass
 			elif ins.Operate() == 'ORG':
 				try:
-					PC = self.SYMTAB[ins.Param()]
+					PC = self.SYMTAB[ins.Param()][0]
 				except:
 					raise Exception('Symbol is not definition yet at:'+str(ins))
 			else:
@@ -242,8 +277,14 @@ class ASM():
 					if (s_size) == 3 and ('+' in ins.Operate()):
 						s_size = 4
 					PC += s_size
-		self.attribute['end'] = PC
+					if PC>end_of_program:
+						end_of_program = PC
+		self.attribute['end'] = end_of_program
+		if self.DEBUG:
+			print(self.SYMTAB)
 	def Symbol_Defining_Handeler(self):
+		if self.DEBUG:
+			print('Handel symbol defining...>',end='')
 		#check
 		for sym in self.SYMTAB:
 			par = self.SYMTAB[sym][0]
@@ -255,6 +296,8 @@ class ASM():
 					par = par.split('-')
 				elif '/' in par:
 					par = par.split('/')
+				elif '*' in par:
+					par = par.split('*')
 				else:
 					par = [par]
 				for p in par:
@@ -269,6 +312,7 @@ class ASM():
 				if self.SYMTAB[sym][1] == 'U':
 					return False
 			return True
+		count = 0
 		while not solved():
 			for sym in self.SYMTAB:
 				par = self.SYMTAB[sym][0]
@@ -293,7 +337,7 @@ class ASM():
 							self.SYMTAB[sym] = [int(par[0]),'R']
 						except:
 							if self.SYMTAB[par[0]][1]!='U':
-								self.SYMTAB[sym] = [self.SYMTAB[par[0]][0],self.SYMTAB[par[0]][R]]
+								self.SYMTAB[sym] = [self.SYMTAB[par[0]][0],self.SYMTAB[par[0]][1]]
 					elif len(par)==2:
 						try:
 							v1 = int(par[0])
@@ -339,24 +383,44 @@ class ASM():
 								self.SYMTAB[sym] = [v1*v2,'A']
 							else:
 								raise Exception("Symbol definition error: "+sym)
+			count+=1
+			if count>=len(self.SYMTAB):
+				raise Exception('Recurse symbol definition')
+		if self.DEBUG:
+			print('Success')
+			print(self.SYMTAB)
 	def DIRECTIVES_SETUP(self, file_name = 'utils/directives'):
 		try:
+			if self.DEBUG:
+				print('Load directives table...>',end='')
 			f = open(file_name, 'r')
 			self.DIRECTIVES = {word.replace('\n','') for word in f.readlines()}
 			f.close()
+			if self.DEBUG:
+				print('Success')
+				print(self.DIRECTIVES)
 		except Exception as e:
+			print('Fail')
 			raise e
 	def Load_Instructions(self, file_name):
 		try:
+			if self.DEBUG:
+				print('Load instructions...>',end='')
 			f = open(file_name,'r')
 			for x in f.readlines():
 				if x.split()!=[]:
 					self.ins_list.append(Instruction(x))
 					self.origin_ins_list.append(Instruction(x))
 			f.close()
+			if self.DEBUG:
+				print('Success')
 		except Exception as e:
+			if self.DEBUG:
+				print('Fail')
 			raise e
 	def Compile(self, record_length_upper_bound = '0xFF',split_symbol = '˰'):
+		if self.DEBUG:
+			print('Compile...>')
 		########################  h record  ########################
 		h = 'H'+split_symbol+self.Program_Name()+split_symbol+MyHex(self.Program_Start())+split_symbol+MyHex(self.Program_End())
 		###  m record declare  ##
@@ -386,6 +450,8 @@ class ASM():
 		BASE = 0
 		base_ready = False
 		for ins in self.ins_list:
+			if self.DEBUG:
+				print(str(ins)+' ',end='')
 			if t == '':
 				t = 'T'+split_symbol
 			op = ins.Operate().replace('+','')
@@ -399,6 +465,8 @@ class ASM():
 				if fmt == 1:######################################################## format 1 case
 					#put into t record
 					length += fmt
+					if self.DEBUG:
+						print(MyHex(self.OPTAB.CodeValue_Search(op),2))
 					entity = entity + MyHex(self.OPTAB.CodeValue_Search(op),2) + split_symbol
 				elif fmt == 2:###################################################### format 2 case
 					#check if beyond bound or not
@@ -417,6 +485,8 @@ class ASM():
 					r2 = par[1]
 					#put into t record
 					length += fmt
+					if self.DEBUG:
+						print(MyHex(self.OPTAB.CodeValue_Search(op),2) + MyHex(self.SYMTAB[r1][0],1) + MyHex(self.SYMTAB[r2][0],1))
 					entity = entity + MyHex(self.OPTAB.CodeValue_Search(op),2) + MyHex(self.SYMTAB[r1][0],1) + MyHex(self.SYMTAB[r2][0],1) + split_symbol
 				elif fmt == 3:###################################################### format 3/4 case
 					n = '@' in par
@@ -453,6 +523,7 @@ class ASM():
 							try:
 								if par == '*':
 									label_addr = addr
+									print(addr)
 								elif not re.search('.+\*.+',par) and '/' not in par:
 									label_addr = addr + int(par.replace('*',''))
 								else:
@@ -533,12 +604,13 @@ class ASM():
 						objcode = MyHex(objcode, 8)
 					#put into t record
 					length += fmt
+					if self.DEBUG:
+						print(objcode)
 					entity = entity + objcode + split_symbol
 			elif op in self.DIRECTIVES:############################################################### directives
-				if op == 'START':################################################### START case
-					pass
-				elif op == 'END':################################################### END case
-					pass
+				if op == 'START' or op == 'END' or op == 'USE' or op == 'LTORG' or op == 'ORG' or op == 'EQU':
+					if self.DEBUG:
+						print()
 				elif op == 'BYTE':################################################## BYTE case
 					#check if not yet start
 					if start == None:
@@ -561,6 +633,8 @@ class ASM():
 							entity = ''
 						#put into t record
 						length += len(ct)
+						if self.DEBUG:
+							print(s)
 						entity = entity + s +split_symbol
 					elif par[0] == 'X':#######################hex case
 						#calculate lenth of hex code
@@ -579,24 +653,11 @@ class ASM():
 							entity = ''
 						#put into t record
 						length += loft
+						if self.DEBUG:
+							print(MyHex(v,loft*2))
 						entity = entity + MyHex(v,loft*2) + split_symbol
-					else:#####################################integer case
-						#convert into hex
-						it=hex(int(par)).replace('0x','')
-						it=(len(it)+1)//2
-						#check if beyond bound or not
-						if length+t > int(upper_bound,16):
-							#cut t record
-							t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-							t_list.append(t)
-							#start a new t record
-							t = 'T'+split_symbol
-							start = addr
-							length = 0
-							entity = ''
-						#put into t record
-						length += it
-						entity = entity + MyHex(int(par),it) + split_symbol
+					else:
+						raise Exception('Parsing error at: '+str(ins))
 				elif op == 'WORD':################################################## WORD case
 					#check if not yet start
 					if start == None:
@@ -612,8 +673,12 @@ class ASM():
 							length = 0
 							entity = ''
 					length+=3
+					if self.DEBUG:
+						print(MyHex(int(par)))
 					entity = entity + MyHex(int(par)) + split_symbol
 				elif op == 'RESB' or op == 'RESW':################################## RESB/RESW case
+					if self.DEBUG:
+						print()
 					if start != None:#in t record
 						#cut record
 						t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
@@ -624,6 +689,8 @@ class ASM():
 						length = 0
 						entity = ''
 				elif op == 'BASE':################################################## BASE case
+					if self.DEBUG:
+						print()
 					if par=='*':
 						BASE = addr
 					else:

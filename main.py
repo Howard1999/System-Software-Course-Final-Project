@@ -20,15 +20,15 @@ try:
 		file_name = 'sample input.txt'#input('Please input the file path...>')
 	a.Load_Instructions(file_name)
 	input('Press Enter To Continue...>')
-	#some handeler
-	a.Blocks_Handeler()
+	#some handler
+	a.Blocks_Handler()
 	input('Press Enter To Continue...>')
-	a.Literal_Handeler()
+	a.Literal_Handler()
 	input('Press Enter To Continue...>')
 	#Establish Symbol Table
 	a.SYMTAB_SETUP_AND_ADDRESS_ASSIGN()
 	input('Press Enter To Continue...>')
-	a.Symbol_Defining_Handeler()
+	a.Symbol_Defining_Handler()
 	input('Press Enter To Continue...>')
 	#generate and print object program
 	objprogram = a.Compile('0x1D')

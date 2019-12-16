@@ -115,7 +115,7 @@ class ASM():
 		return self.attribute['end']
 	def Instruction_List(self):
 		return self.origin_ins_list.copy()
-	def Instruction_List_After_Handeler(self):
+	def Instruction_List_After_Handler(self):
 		return self.ins_list.copy()
 	def Literals(self):
 		return self.Literal_Address.copy()
@@ -141,7 +141,7 @@ class ASM():
 			if self.DEBUG:
 				print('Fail')
 			raise e
-	def Blocks_Handeler(self):
+	def Blocks_Handler(self):
 		if self.DEBUG:
 			print('Handel program block...>',end='')
 		blocks = {
@@ -163,7 +163,7 @@ class ASM():
 		self.ins_list = blocks['(default)'] + blocks['CDATA'] + blocks['CBLKS']
 		if self.DEBUG:
 			print('Success')
-	def Literal_Handeler(self):
+	def Literal_Handler(self):
 		if self.DEBUG:
 			print('Handel literal...>',end='')
 		def int_to_chr(i):
@@ -282,7 +282,7 @@ class ASM():
 		self.attribute['end'] = end_of_program
 		if self.DEBUG:
 			print(self.SYMTAB)
-	def Symbol_Defining_Handeler(self):
+	def Symbol_Defining_Handler(self):
 		if self.DEBUG:
 			print('Handel symbol defining...>',end='')
 		#check
@@ -400,24 +400,23 @@ class ASM():
 				print('Success')
 				print(self.DIRECTIVES)
 		except Exception as e:
-			print('Fail')
+			if DEBUG:
+				print('Fail')
 			raise e
 	def Load_Instructions(self, file_name):
 		try:
 			if self.DEBUG:
-				print('Load instructions...>',end='')
+				print('Load instructions...>')
 			f = open(file_name,'r')
 			for x in f.readlines():
 				if x.split()!=[]:
 					self.ins_list.append(Instruction(x))
 					self.origin_ins_list.append(Instruction(x))
+					if self.DEBUG:
+						print(self.ins_list[len(self.ins_list)-1])
 			f.close()
-			if self.DEBUG:
-				print('Success')
 		except Exception as e:
-			if self.DEBUG:
-				print('Fail')
-			raise e
+			raise Exception('Open file failure')
 	def Compile(self, record_length_upper_bound = '0xFF',split_symbol = '˰'):
 		if self.DEBUG:
 			print('Compile...>')
@@ -523,7 +522,6 @@ class ASM():
 							try:
 								if par == '*':
 									label_addr = addr
-									print(addr)
 								elif not re.search('.+\*.+',par) and '/' not in par:
 									label_addr = addr + int(par.replace('*',''))
 								else:

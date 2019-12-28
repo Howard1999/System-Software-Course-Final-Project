@@ -417,7 +417,7 @@ class ASM():
 			f.close()
 		except Exception as e:
 			raise Exception('Open file failure')
-	def Compile(self, record_length_upper_bound = '0xFF',split_symbol = '˰'):
+	def Compile(self, upper_bound = '0xFF',split_symbol = '˰'):
 		if self.DEBUG:
 			print('Compile...>')
 		########################  h record  ########################
@@ -425,30 +425,16 @@ class ASM():
 		###  m record declare  ##
 		m_list = []
 		########################  t record  ########################
-		'''
-		if put object code into entity
-			1.check if the start has been setup or not
-				--if not:
-					setup the start address
-					then continue your work
-			2.check if the length can afford this object code
-				--if not:
-					cut t record and put into t_list
-					start a new t record
-					then continue your work
-			3. if object code has information about ""absolute address of a label""
-				add m record in to m_list
-		'''
 		t_list = []
 		t = ''
 		start = None
-		length = 0##upper bound 0xFF
-		upper_bound = record_length_upper_bound
+		length = 0
 		entity = ''
 		
 		BASE = 0
 		base_ready = False
 		for ins in self.ins_list:
+			OBJ_code=None
 			if self.DEBUG:
 				print(str(ins)+' ',end='')
 			if t == '':
@@ -456,37 +442,16 @@ class ASM():
 			op = ins.Operate().replace('+','')
 			par = ins.Param()
 			addr = ins.Address()
-			if self.OPTAB.Is_in_OPtable(op):########################################################## Operate
-				#check if not yet start
-				if start == None:
-					start = addr
+			if self.OPTAB.Is_in_OPtable(op):##################################################### Operate
 				fmt = self.OPTAB.Format_Search(op)
 				if fmt == 1:######################################################## format 1 case
-					#put into t record
-					length += fmt
-					if self.DEBUG:
-						print(MyHex(self.OPTAB.CodeValue_Search(op),2))
-					entity = entity + MyHex(self.OPTAB.CodeValue_Search(op),2) + split_symbol
+					OBJ_code = MyHex(self.OPTAB.CodeValue_Search(op),2)
 				elif fmt == 2:###################################################### format 2 case
-					#check if beyond bound or not
-					if length+fmt > int(upper_bound,16):
-						#cut t record
-						t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-						t_list.append(t)
-						#start a new t record
-						t = 'T'+split_symbol
-						start = addr
-						length = 0
-						entity = ''
 					par = par.split(',')
 					par.append('A')
 					r1 = par[0]
 					r2 = par[1]
-					#put into t record
-					length += fmt
-					if self.DEBUG:
-						print(MyHex(self.OPTAB.CodeValue_Search(op),2) + MyHex(self.SYMTAB[r1][0],1) + MyHex(self.SYMTAB[r2][0],1))
-					entity = entity + MyHex(self.OPTAB.CodeValue_Search(op),2) + MyHex(self.SYMTAB[r1][0],1) + MyHex(self.SYMTAB[r2][0],1) + split_symbol
+					OBJ_code = MyHex(self.OPTAB.CodeValue_Search(op),2) + MyHex(self.SYMTAB[r1][0],1) + MyHex(self.SYMTAB[r2][0],1)
 				elif fmt == 3:###################################################### format 3/4 case
 					n = '@' in par
 					i = '#' in par
@@ -496,16 +461,6 @@ class ASM():
 					p = None
 					if e:
 						fmt = 4
-					#check if beyond bound or not
-					if length+fmt > int(upper_bound,16):
-						#cut t record
-						t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-						t_list.append(t)
-						#start a new t record
-						t = 'T'+split_symbol
-						start = addr
-						length = 0
-						entity = ''
 					#handle parameter
 					par = par.replace('@','')
 					par = par.replace('#','')
@@ -550,7 +505,7 @@ class ASM():
 							disp4 = label_addr
 							#generate m record and put into m_list
 							if self.SYMTAB[par][1]=='R':
-								m = 'M' + split_symbol + MyHex(addr+1, 6) + split_symbol + '05'
+								m = 'M' + split_symbol + MyHex(addr+1) + split_symbol + '05'
 								m_list.append(m)
 					elif par == '':#empty case
 						p = False
@@ -596,96 +551,37 @@ class ASM():
 							objcode = ((objcode+1) << 12) + disp
 						else:
 							objcode = (objcode << 12) + disp
-						objcode = MyHex(objcode, 6)
+						objcode = MyHex(objcode)
 					elif fmt == 4:
 						objcode = (objcode << 20) + disp4
 						objcode = MyHex(objcode, 8)
-					#put into t record
-					length += fmt
-					if self.DEBUG:
-						print(objcode)
-					entity = entity + objcode + split_symbol
-			elif op in self.DIRECTIVES:############################################################### directives
+					OBJ_code = objcode
+			elif op in self.DIRECTIVES:######################################################## directives
 				if op == 'START' or op == 'END' or op == 'USE' or op == 'LTORG' or op == 'ORG' or op == 'EQU':
 					if self.DEBUG:
 						print()
+					continue
 				elif op == 'BYTE':################################################## BYTE case
-					#check if not yet start
-					if start == None:
-						start = addr
 					if par[0] == 'C':#########################character case
 						#convert into hex
 						ct=par.replace("'",'')[1:]
 						s=''
 						for c in ct:
 							s+=MyHex(ord(c),2)
-						#check if beyond bound or not
-						if length+len(ct) > int(upper_bound,16):
-							#cut t record
-							t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-							t_list.append(t)
-							#start a new t record
-							t = 'T'+split_symbol
-							start = addr
-							length = 0
-							entity = ''
-						#put into t record
-						length += len(ct)
-						if self.DEBUG:
-							print(s)
-						entity = entity + s +split_symbol
+						OBJ_code = s
 					elif par[0] == 'X':#######################hex case
 						#calculate lenth of hex code
 						xt=par.replace("'",'')[1:]
 						loft=(len(xt)+1)//2
 						v=int(xt,16)
-						#check if beyond bound or not
-						if length+loft > int(upper_bound,16):
-							#cut t record
-							t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-							t_list.append(t)
-							#start a new t record
-							t = 'T'+split_symbol
-							start = addr
-							length = 0
-							entity = ''
-						#put into t record
-						length += loft
-						if self.DEBUG:
-							print(MyHex(v,loft*2))
-						entity = entity + MyHex(v,loft*2) + split_symbol
+						OBJ_code = MyHex(v,loft*2)
 					else:
 						raise Exception('Parsing error at: '+str(ins))
 				elif op == 'WORD':################################################## WORD case
-					#check if not yet start
-					if start == None:
-						start = addr
-					#check if beyond bound or not
-					if length+3 > int(upper_bound,16):
-							#cut t record
-							t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-							t_list.append(t)
-							#start a new t record
-							t = 'T'+split_symbol
-							start = addr
-							length = 0
-							entity = ''
-					length+=3
-					if self.DEBUG:
-						print(MyHex(int(par)))
-					entity = entity + MyHex(int(par)) + split_symbol
-				elif op == 'RESB' or op == 'RESW':################################## RESB/RESW case
+					OBJ_code = MyHex(int(par))
+				elif op == 'RESB' or op == 'RESW':
 					if self.DEBUG:
 						print()
-					if start != None:#in t record
-						#cut record
-						t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-						t_list.append(t)
-						#start a new t record
-						t = 'T'+split_symbol
-						start = None
-						length = 0
-						entity = ''
 				elif op == 'BASE':################################################## BASE case
 					if self.DEBUG:
 						print()
@@ -694,22 +590,44 @@ class ASM():
 					else:
 						BASE = self.SYMTAB[par][0]
 					base_ready = True
+					continue
 			else:#worng input
 				raise Exception('Instruction Parsing Error at:'+str(ins))
-			#check t record length
-			if length == int(upper_bound,16):
-				#cut record
-				t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-				t_list.append(t)
-				#start a new t record
-				t = 'T'+split_symbol
+			
+			#put into t_record
+			if OBJ_code == None:#didn't generate object_code
+				if start == None:#t record not yet start
+					continue
+				#put t_record into t_record_list
+				t_list.append(t+split_symbol+MyHex(start)+split_symbol+MyHex(length,2)+split_symbol+entity)
+				#start the t_record
+				t = 'T'
 				start = None
-				length =0
+				length = 0
 				entity = ''
-		#put into t_list
-		if entity!='':
-			t = t + MyHex(start) + split_symbol + MyHex(length,2) + split_symbol + entity
-			t_list.append(t)
+			else:#there are object_code be generated
+				if self.DEBUG:
+					print(OBJ_code)
+				#check if t_record has been started
+				if start == None:#not start yet
+					t = 'T'
+					start = ins.Address()
+					length = 0
+					entity = ''
+				#check if t_record length can afford object_code
+				if length+len(OBJ_code)//2>int(upper_bound,16):
+					#put t_record into t_record_list
+					t_list.append(t+split_symbol+MyHex(start)+split_symbol+MyHex(length,2)+split_symbol+entity)
+					#start the t_record
+					t = 'T'
+					start = ins.Address()
+					length = 0
+					entity = ''
+				#put into t_record
+				length += len(OBJ_code)//2
+				entity = entity + OBJ_code + split_symbol
+		if entity != '':
+			t_list.append(t+split_symbol+MyHex(start)+split_symbol+MyHex(length,2)+split_symbol+entity)
 		########################  e record  ########################
 		e = 'E'+split_symbol+MyHex(self.Program_Start())
 		########################  return object program  ########################
